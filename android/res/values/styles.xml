@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      跟随系统深浅色（DeviceDefault 在深色模式下自动变暗），
+      窗口底色用 colorBackground 而不是写死浅色——写死的话深色模式启动会闪一下白屏。
+      网页自己也有 prefers-color-scheme，两边一致。
+    -->
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">?android:attr/colorBackground</item>
+    </style>
+</resources>

@@ -1,0 +1,63 @@
+# 场景包 —— 同一份 KB，不同场合只让相关的那部分进场
+#
+# 为什么需要：个人知识库里什么都有，但对外沟通、客户会议、跟朋友闲扯需要的
+# 是完全不同的三套事实。全都塞给模型，除了费 token，还会让它在该说项目的时候
+# 冒出不该对外说的内容。
+#
+# 字段：
+#   label      下拉框里显示的名字
+#   desc       「这次是什么场合」——对外的档位别写自己才知道的私事
+#   scopes     只检索这些领域；空列表 = 不限。条目领域见索引包 entries[].scopes
+#              （career / tech / legal / finance / personal / general）
+#   audience   假设**听的人是谁**：self / friend / client / recruiter / public
+#              条目里没列这个听众就不进场（personal 类默认不给 client/recruiter）
+#              留空 = 不按听众过滤
+#   top_k      这次取几条
+#   budget     注入正文的字数上限（TTS 是大头成本，但这里省的是 token）
+#
+# 改完不用重启：kb_bridge 按 mtime 自动重载。
+# 环境变量 KB_SCENARIO 可以改默认档；KB_SCENARIOS 可以换这个文件的位置。
+
+version: 1
+default: default
+
+scenarios:
+  default:
+    label: 通用
+    desc: 不限领域、不限听众，和以前行为一致
+    scopes: []
+    audience: ""
+    top_k: 3
+    budget: 700
+
+  meeting:
+    label: 开会 · 客户
+    desc: 技术 + 职场 + 成本；私人生活的部分不进
+    scopes: [tech, career, finance, general]
+    audience: client
+    top_k: 3
+    budget: 700
+
+  interview:
+    label: 面试 · 求职
+    desc: 对外场合；只讲能公开讲的项目与技术，预算给宽一点以便给具体数字
+    scopes: [career, tech, general]
+    audience: recruiter
+    top_k: 3
+    budget: 900
+
+  negotiation:
+    label: 谈判 · 维权
+    desc: 法律与钱优先，技术细节不进场
+    scopes: [legal, finance, career, general]
+    audience: client
+    top_k: 3
+    budget: 800
+
+  call:
+    label: 电话 · 日常
+    desc: 朋友闲聊，只留轻松话题，取少一点
+    scopes: []
+    audience: friend
+    top_k: 2
+    budget: 500

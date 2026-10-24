@@ -1,0 +1,12 @@
+[Unit]
+Description=会议录音留存清理（音频到期移入回收站，文本不动）
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/app
+# 只清音频，不碰文本；收藏过的归档整个跳过。
+# 队列里实际保留多少天由脚本参数决定（默认 60 天 + 回收站 7 天）。
+ExecStart=/usr/bin/python3 %h/app/deploy/retention.py --apply
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=10min

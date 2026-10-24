@@ -1,0 +1,36 @@
+{
+  "name": "Meeting Scribe · 智能语音分身助理",
+  "short_name": "Meeting Scribe",
+  "description": "Meeting Scribe · 智能语音分身助理 —— 会议实时字幕与说话人识别、自动纪要归档，AI 语音分身可代答、可提词",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#f6f7f9",
+  "theme_color": "#111827",
+  "categories": ["productivity", "business"],
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

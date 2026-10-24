@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  一个壳，不是另一个 App。
+  里面加载的就是 MainActivity.HOME 指定的那一份网页，
+  所以功能改动不用重新发 APK，用户也不用重装。
+
+  为什么必须 HTTPS：网页里要用 getUserMedia 拿麦克风，浏览器只在安全上下文
+  才给；Funnel 正好提供了证书，不用自签也不用信任例外。
+
+  版本号：唯一真源是仓库根的 VERSION 文件。下面 versionName 只是占位，
+  构建时 build_apk.sh 会用 `version-name` 参数覆盖成 VERSION 的内容。
+  改版本请改 VERSION，不要只改这里（tests/test_version.py 会校验两者一致）。
+
+  注意：XML 注释里**不能出现连续两个连字符**（XML 规范硬性规定），
+  否则 aapt2 link 会报 "not well-formed (invalid token)"，且只在打包时才暴露。
+  所以上面那个参数名没有写成带两条杠的形式。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="cn.example.meeting"
+    android:versionCode="1"
+    android:versionName="1.1.0">
+
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="false"
+        android:hardwareAccelerated="true"
+        android:allowBackup="false"
+        android:supportsRtl="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

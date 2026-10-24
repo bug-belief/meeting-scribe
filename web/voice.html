@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#111827">
+<title>Meeting Scribe · 分身输出通道</title>
+<style>
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --text:#111827; --muted:#6b7280; --line:#e5e7eb;
+  --accent:#2563eb; --danger:#e11d48; --ok:#059669; --warn:#d97706;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0b1020; --card:#141b2d; --text:#e8ecf5; --muted:#93a0b8; --line:#25304a;
+         --accent:#5b8cff; --danger:#ff4d6d; --ok:#34d399; --warn:#fbbf24; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.6;padding:0 16px 48px;
+}
+.wrap{max-width:720px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 2px 14px}
+h1{font-size:17px;font-weight:600;margin:0;letter-spacing:.2px}
+.badge{
+  font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);
+  color:var(--muted);background:var(--card);display:flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.badge.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.badge.ok .dot{background:var(--ok)}
+.badge.err{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent)}
+.badge.err .dot{background:var(--danger)}
+.badge.busy{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.badge.busy .dot{background:var(--warn)}
+
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px 18px;margin-bottom:12px;
+}
+.card h2{font-size:14px;font-weight:600;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+.card h2 .n{
+  width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;
+  font-size:11.5px;display:flex;align-items:center;justify-content:center;flex:none;
+}
+.card p{margin:6px 0 0;font-size:13px;color:var(--muted);line-height:1.65}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+button{
+  font-family:inherit;font-size:14px;padding:9px 16px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--line);background:var(--card);color:var(--text);transition:transform .1s;
+}
+button:active{transform:scale(.97)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+button.ghost{color:var(--muted)}
+button:disabled{opacity:.45;cursor:not-allowed}
+select{
+  font-family:inherit;font-size:14px;padding:9px 12px;border-radius:10px;width:100%;
+  border:1px solid var(--line);background:var(--card);color:var(--text);margin-top:10px;
+}
+label.check{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--muted);cursor:pointer}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+textarea,input[type=number]{
+  font-family:inherit;font-size:14px;padding:9px 12px;border-radius:10px;
+  border:1px solid var(--line);background:var(--card);color:var(--text);
+}
+textarea{width:100%;margin-top:10px;resize:vertical;line-height:1.6}
+input[type=number]{width:66px;text-align:center}
+.note{
+  margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px;
+  background:color-mix(in srgb,var(--accent) 7%,transparent);
+  border:1px solid color-mix(in srgb,var(--accent) 22%,transparent);
+  color:var(--text);line-height:1.65;
+}
+.note.warn{background:color-mix(in srgb,var(--warn) 9%,transparent);border-color:color-mix(in srgb,var(--warn) 28%,transparent)}
+.note.err{background:color-mix(in srgb,var(--danger) 8%,transparent);border-color:color-mix(in srgb,var(--danger) 26%,transparent)}
+.note b{font-weight:600}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+  background:color-mix(in srgb,var(--text) 7%,transparent);padding:1px 5px;border-radius:5px}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+td{padding:6px 0;border-bottom:1px dashed var(--line);vertical-align:top}
+td:first-child{color:var(--muted);width:96px;white-space:nowrap}
+td:last-child{word-break:break-all}
+tr:last-child td{border-bottom:0}
+.log{
+  margin-top:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+  background:color-mix(in srgb,var(--text) 5%,transparent);border-radius:10px;
+  padding:10px 12px;min-height:56px;max-height:170px;overflow-y:auto;white-space:pre-wrap;
+  line-height:1.7;color:var(--muted);
+}
+.log .ok{color:var(--ok)}
+.log .bad{color:var(--danger)}
+.log .warnline{color:var(--warn)}
+footer{font-size:12.5px;color:var(--muted);text-align:center;padding-top:6px;line-height:1.8}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>分身输出通道</h1>
+  <span class="badge" id="badge"><i class="dot"></i><span id="badgeText">未检测</span></span>
+</header>
+
+<div class="card">
+  <h2><span class="n">1</span>检测输出设备</h2>
+  <p>浏览器要先拿到一次麦克风授权，才肯告诉你设备的真实名字（否则列表里全是空标签）。授权后立刻释放，不会占用麦克风。</p>
+  <div class="row">
+    <button class="primary" id="btnDetect">开始检测</button>
+  </div>
+  <div id="supportNote"></div>
+</div>
+
+<div class="card" id="cardSink" hidden>
+  <h2><span class="n">2</span>选择输出设备</h2>
+  <p>要让微信听见，这里必须选 <b>虚拟声卡的播放端</b>。名字容易搞反：</p>
+  <table>
+    <tr><td>选这个</td><td><code>CABLE Input</code> 或 <code>VoiceMeeter Input</code>（名字叫 Input，但它是播放设备）</td></tr>
+    <tr><td>不要选</td><td><code>CABLE Output</code>（那是录音端，给微信当麦克风用的）</td></tr>
+  </table>
+  <select id="sinkSel"></select>
+  <div id="sinkNote"></div>
+</div>
+
+<div class="card" id="cardPlay" hidden>
+  <h2><span class="n">3</span>试听</h2>
+  <p>选一段音频播进去。去微信里拨个电话（或发条语音消息试听），对方听到的应该就是这段。</p>
+  <select id="sampleSel"></select>
+  <div class="row">
+    <button class="primary" id="btnPlay">播放</button>
+    <button class="ghost" id="btnStop">停止</button>
+    <label class="check"><input type="checkbox" id="monitor"> 同时用耳机监听</label>
+    <label class="check"><input type="checkbox" id="loop"> 循环</label>
+  </div>
+  <div class="log" id="log">等待操作…</div>
+</div>
+
+<div class="card" id="cardSay" hidden>
+  <h2><span class="n">4</span>让它用我的声音说</h2>
+  <p>输入文字，服务器用 <b>CosyVoice2</b> 克隆你的音色合成，再按步骤 2 选的设备播出去。微信那头听到的就是「你」在说。</p>
+  <select id="voiceSel"></select>
+  <textarea id="sayText" rows="3" placeholder="例如：我现在不方便出声，先让它替我说，你等我一下。"></textarea>
+  <div class="row">
+    <button class="primary" id="btnSay">合成并播放</button>
+    <button class="ghost" id="btnSayStop">停止</button>
+    <label class="check">语速 <input type="number" id="speed" value="1.0" min="0.5" max="2" step="0.1"></label>
+    <label class="check"><input type="checkbox" id="sayMonitor"> 耳机监听</label>
+  </div>
+  <div id="sayNote"></div>
+</div>
+
+<footer>
+  <div id="footHint">输出链路：本页 → 虚拟声卡 → 微信麦克风 → 对方</div>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var badge = $('badge'), badgeText = $('badgeText');
+  var btnDetect = $('btnDetect'), btnPlay = $('btnPlay'), btnStop = $('btnStop');
+  var cardSink = $('cardSink'), cardPlay = $('cardPlay');
+  var sinkSel = $('sinkSel'), sampleSel = $('sampleSel');
+  var monitorEl = $('monitor'), loopEl = $('loop');
+  var logEl = $('log');
+  var cardSay = $('cardSay'), voiceSel = $('voiceSel'), sayText = $('sayText');
+  var btnSay = $('btnSay'), btnSayStop = $('btnSayStop');
+  var speedEl = $('speed'), sayMonitorEl = $('sayMonitor');
+
+  var audio = null;
+  var monitorAudio = null;
+  var sayAudio = null;
+  var sayUrl = null;
+  var outputs = [];
+
+  function setBadge(text, cls) {
+    badgeText.textContent = text;
+    badge.className = 'badge' + (cls ? ' ' + cls : '');
+  }
+
+  function log(msg, cls) {
+    var t = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    var line = document.createElement('div');
+    if (cls) line.className = cls;
+    line.textContent = '[' + t + '] ' + msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function note(el, html, cls) {
+    el.innerHTML = html ? '<div class="note ' + (cls || '') + '">' + html + '</div>' : '';
+  }
+
+  var supported = typeof HTMLMediaElement !== 'undefined' &&
+                  typeof HTMLMediaElement.prototype.setSinkId === 'function';
+
+  if (!supported) {
+    note($('supportNote'),
+      '<b>这个浏览器不支持切换输出设备</b>（setSinkId）。请换 Chrome 或 Edge 打开本页。',
+      'err');
+    setBadge('不支持', 'err');
+    btnDetect.disabled = true;
+  } else {
+    note($('supportNote'),
+      '当前浏览器支持 <code>setSinkId</code>，可以把网页音频直接送进虚拟声卡。', '');
+  }
+
+  async function detect() {
+    btnDetect.disabled = true;
+    setBadge('检测中', 'busy');
+    try {
+      var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(function (t) { t.stop(); });
+
+      var devices = await navigator.mediaDevices.enumerateDevices();
+      outputs = devices.filter(function (d) { return d.kind === 'audiooutput'; });
+
+      sinkSel.innerHTML = '';
+      outputs.forEach(function (d) {
+        var opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.textContent = d.label || ('设备 ' + d.deviceId.slice(0, 6));
+        sinkSel.appendChild(opt);
+      });
+
+      var virt = outputs.find(function (d) {
+        return /cable|voicemeeter|vb-audio|virtual/i.test(d.label || '');
+      });
+
+      if (virt) {
+        sinkSel.value = virt.deviceId;
+        note($('sinkNote'), '已自动选中 <b>' + virt.label + '</b>。确认无误后去试听。', '');
+        setBadge('设备就绪', 'ok');
+        log('发现 ' + outputs.length + ' 个输出设备，已选中虚拟声卡：' + virt.label, 'ok');
+      } else {
+        note($('sinkNote'),
+          '没找到虚拟声卡。请先安装 <b>VB-CABLE</b> 或 <b>VoiceMeeter</b>（免费），装完重启电脑再回来检测。' +
+          '现在下拉框里只有你真实的耳机/音箱，选它们的话只有你自己听得见，微信收不到。',
+          'warn');
+        setBadge('缺虚拟声卡', 'err');
+        log('未发现虚拟声卡设备，当前只有 ' + outputs.length + ' 个物理输出设备', 'warnline');
+      }
+
+      cardSink.hidden = false;
+      cardPlay.hidden = false;
+      cardSay.hidden = false;
+      await loadSamples();
+      await loadVoices();
+    } catch (err) {
+      setBadge('授权失败', 'err');
+      log('拿设备列表失败：' + (err && err.name) + ' ' + (err && err.message), 'bad');
+      note($('sinkNote'),
+        '浏览器拒绝了麦克风授权，拿不到设备名。请在地址栏左侧的图标里允许麦克风，再点一次检测。',
+        'err');
+    } finally {
+      btnDetect.disabled = false;
+      btnDetect.textContent = '重新检测';
+    }
+  }
+
+  async function loadSamples() {
+    try {
+      var res = await fetch('/api/voice/samples', { credentials: 'same-origin' });
+      var data = await res.json();
+      sampleSel.innerHTML = '';
+      (data.samples || []).forEach(function (s) {
+        var opt = document.createElement('option');
+        opt.value = s.name;
+        opt.textContent = s.name + '  (' + Math.round(s.size / 1024) + ' KB)';
+        sampleSel.appendChild(opt);
+      });
+      if (!data.samples || !data.samples.length) {
+        var opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '（服务器上没有测试音频）';
+        sampleSel.appendChild(opt);
+        log('服务器 voice_samples 目录为空', 'warnline');
+      } else {
+        log('测试音频 ' + data.samples.length + ' 个，来自 ' + data.dir);
+      }
+    } catch (err) {
+      log('拉取测试音频列表失败：' + err, 'bad');
+    }
+  }
+
+  function stopAll() {
+    if (audio) { audio.pause(); audio.removeAttribute('src'); audio = null; }
+    if (monitorAudio) { monitorAudio.pause(); monitorAudio.removeAttribute('src'); monitorAudio = null; }
+    if (sayAudio) { sayAudio.pause(); sayAudio = null; }
+    if (sayUrl) { URL.revokeObjectURL(sayUrl); sayUrl = null; }
+  }
+
+  async function loadVoices() {
+    try {
+      var res = await fetch('/api/tts/voices', { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var data = await res.json();
+      voiceSel.innerHTML = '';
+      var list = data.voices || [];
+      list.forEach(function (v) {
+        var opt = document.createElement('option');
+        opt.value = v.name;
+        // 显示用中文（speaker），value 仍走原始 id —— 别把两者搞混，
+        // 提交给 /api/tts 的必须是 v.name。
+        var who = v.speaker || v.name;
+        var pf = v.profile && v.profile !== '默认' ? ' · ' + v.profile : '';
+        opt.textContent = who + pf + '（' + (v.text || '').slice(0, 16) + '…）';
+        voiceSel.appendChild(opt);
+      });
+      if (!list.length) {
+        note($('sayNote'),
+          '还没有登记音色。在服务器上跑一次：<br>' +
+          '<code>python voice_register.py --name 你的名字 --audio 某段录音.wav --channel left</code><br>' +
+          '然后回来刷新本页。', 'warn');
+        btnSay.disabled = true;
+        log('合成服务在线，但还没有音色', 'warnline');
+      } else {
+        note($('sayNote'), '', '');
+        btnSay.disabled = false;
+        log('可用音色 ' + list.length + ' 个：' + list.map(function (v) { return v.speaker || v.name; }).join('、'), 'ok');
+      }
+    } catch (err) {
+      note($('sayNote'),
+        '连不上合成服务（' + err + '）。检查服务器上 <code>tts_server.py</code> 是否在跑。', 'err');
+      btnSay.disabled = true;
+      log('合成服务不可用', 'bad');
+    }
+  }
+
+  async function say() {
+    var text = sayText.value.trim();
+    if (!text) { log('先输入要它说的话', 'warnline'); sayText.focus(); return; }
+    var dev = sinkSel.value;
+    var label = dev && sinkSel.selectedIndex >= 0
+      ? sinkSel.options[sinkSel.selectedIndex].textContent : '（未选设备）';
+
+    stopAll();
+    btnSay.disabled = true;
+    setBadge('合成中', 'busy');
+    var t0 = performance.now();
+    try {
+      var res = await fetch('/api/tts', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          voice: voiceSel.value,
+          speed: parseFloat(speedEl.value) || 1.0
+        })
+      });
+      if (!res.ok) {
+        var detail = '';
+        try { detail = (await res.json()).error || ''; } catch (e) {}
+        throw new Error(detail || ('HTTP ' + res.status));
+      }
+      var blob = await res.blob();
+      var cost = ((performance.now() - t0) / 1000).toFixed(2);
+      var secs = res.headers.get('X-Audio-Seconds') || '?';
+      var cache = res.headers.get('X-Cache') === 'hit' ? '缓存' : '新合成';
+
+      sayUrl = URL.createObjectURL(blob);
+      sayAudio = new Audio(sayUrl);
+      if (dev) {
+        try { await sayAudio.setSinkId(dev); }
+        catch (e) { log('路由到虚拟声卡失败：' + e.message, 'bad'); }
+      }
+      sayAudio.onended = function () { log('说完了'); setBadge('设备就绪', 'ok'); };
+      await sayAudio.play();
+      log('「' + text.slice(0, 18) + '…」→ ' + label +
+          '（音频 ' + secs + 's，耗时 ' + cost + 's，' + cache + '）', 'ok');
+      setBadge('播放中', 'busy');
+
+      if (sayMonitorEl.checked) {
+        var mon = new Audio(sayUrl);
+        mon.volume = 0.85;
+        mon.play().catch(function () { log('耳机监听启动失败（不影响主链路）', 'warnline'); });
+      }
+    } catch (err) {
+      log('合成失败：' + err.message, 'bad');
+      setBadge('合成失败', 'err');
+    } finally {
+      btnSay.disabled = false;
+    }
+  }
+
+  async function play() {
+    stopAll();
+    var dev = sinkSel.value;
+    var name = sampleSel.value;
+    if (!dev) { log('先在步骤 2 选一个输出设备', 'warnline'); return; }
+    if (!name) { log('没有可播放的测试音频', 'warnline'); return; }
+
+    var label = sinkSel.options[sinkSel.selectedIndex].textContent;
+    var url = '/api/voice/sample?name=' + encodeURIComponent(name);
+
+    audio = new Audio();
+    audio.src = url;
+    audio.loop = loopEl.checked;
+
+    try {
+      await audio.setSinkId(dev);
+    } catch (err) {
+      log('切换输出设备失败：' + err.name + ' — ' + err.message, 'bad');
+      log('常见原因：设备被其他程序独占（开着的播放器/会议软件），或采样率不匹配。', 'warnline');
+      setBadge('路由失败', 'err');
+      return;
+    }
+
+    audio.onerror = function () { log('音频加载失败，检查文件是否还在', 'bad'); };
+    audio.onended = function () {
+      if (!loopEl.checked) { log('播放结束'); setBadge('设备就绪', 'ok'); }
+    };
+
+    try {
+      await audio.play();
+      log('正在播放「' + name + '」→ ' + label, 'ok');
+      setBadge('播放中', 'busy');
+    } catch (err) {
+      log('播放失败：' + err.name + ' — ' + err.message, 'bad');
+      return;
+    }
+
+    if (monitorEl.checked) {
+      monitorAudio = new Audio(url);
+      monitorAudio.loop = audio.loop;
+      monitorAudio.volume = 0.7;
+      monitorAudio.play().catch(function () {
+        log('耳机监听启动失败（不影响主链路）', 'warnline');
+      });
+    }
+  }
+
+  btnDetect.addEventListener('click', detect);
+  btnPlay.addEventListener('click', play);
+  btnSay.addEventListener('click', say);
+  btnSayStop.addEventListener('click', function () {
+    stopAll();
+    log('已停止');
+    setBadge('设备就绪', 'ok');
+  });
+  btnStop.addEventListener('click', function () {
+    stopAll();
+    log('已停止');
+    setBadge('设备就绪', 'ok');
+  });
+
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener('devicechange', function () {
+      log('检测到设备变化，建议重新检测', 'warnline');
+    });
+  }
+})();
+</script>
+</body>
+</html>

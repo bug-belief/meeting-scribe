@@ -1,0 +1,6 @@
+# 可选路线 B：WhisperX（多语种更强，但说话人分离依赖 pyannote + HuggingFace 授权）
+# 与 funasr 装在同一环境可能产生依赖冲突，建议单独 venv
+whisperx>=3.1.1
+pyannote.audio>=3.1
+torch>=2.1
+torchaudio>=2.1

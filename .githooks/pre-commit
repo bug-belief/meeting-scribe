@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# .githooks/pre-commit —— 仓库自带 hook（零依赖）
+# ------------------------------------------------------------------------------
+# 启用一次即可：  git config core.hooksPath .githooks
+# 关闭：          git config --unset core.hooksPath
+#
+# 为什么放仓库里而不是 .git/hooks：.git 不进版本库 ⇒ 换个克隆就没了，
+# 等于「每次换机器门禁自动失效」。
+#
+# 这个设置存在 `.git/config` 里，**不随仓库分发**：
+# 每次克隆后（以及本机的每个工作区）都要手动执行一次
+# `git config core.hooksPath .githooks`。
+# ==============================================================================
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+mapfile -t files < <(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACM)
+[ ${#files[@]} -eq 0 ] && exit 0
+
+# 两道门禁都要跑，任一失败即拒绝提交。
+# 🔴 不能用 `exec`（它会替换掉本进程，第二道就永远不执行）。
+#    原来只有 check-style，加 sanitize 时若沿用 exec，脱敏检查会静默失效 ——
+#    这类「加了但没生效」比没加更糟，因为大家会以为查过了。
+fail=0
+bash tools/check-style.sh "${files[@]}" || fail=1
+
+# 脱敏门禁：真实身份 / 内网坐标 / 住址 / 案情。
+# 只在有 python3 时跑（Windows 的 Git Bash 可能没有 python3 这个名字，
+# 有 python 也行）；两个都找不到时**明确说未校验**，不静默放行。
+PY=""
+for cand in python3 python; do
+  if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+done
+if [ -n "$PY" ]; then
+  "$PY" tools/sanitize-check.py "${files[@]}" || fail=1
+else
+  echo "[sanitize] · 未校验：找不到 python3/python（脱敏检查没跑）" >&2
+fi
+
+exit "$fail"

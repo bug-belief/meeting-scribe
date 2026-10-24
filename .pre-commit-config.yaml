@@ -1,0 +1,31 @@
+# pre-commit 配置（可选增强 · 需要本机装 pre-commit）
+#   pipx install pre-commit && pre-commit install
+#
+# 与 .githooks/pre-commit 的关系：
+#   · .githooks/pre-commit = **零依赖门禁**（CRLF / 行尾空白 / 前导 Tab / final newline），任何时候都在
+#   · 本文件 = **装了工具之后的加强门禁**（ruff lint + shfmt）
+#   两者不冲突：装了 pre-commit 后它会接管 git hook，届时把 core.hooksPath 清掉。
+#
+# ⚠️ 刻意不启用 ruff-format：存量 15K 行一次性重排会毁掉全部 blame，
+#    见 docs/adr/0002-format-baseline.md。要做就单独一个提交，不要混在这里。
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7          # 可用 `pre-commit autoupdate` 刷新
+    hooks:
+      - id: ruff
+        name: ruff lint (E/F/I)
+        args: ["--select", "E,F,I", "--no-fix"]
+
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.7.0-1
+    hooks:
+      - id: shfmt
+        args: ["-i", "2", "-w"]
+
+  - repo: local
+    hooks:
+      - id: check-style
+        name: 零依赖风格门禁（CRLF / 行尾空白 / 前导 Tab / final newline）
+        entry: bash tools/check-style.sh
+        language: system
+        types: [file]

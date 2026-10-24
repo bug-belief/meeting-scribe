@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "meeting-scribe/schema/state.schema.json",
+  "title": "去重状态库 state.json",
+  "description": "work/state.json 的结构：{<sha256>: <entry>}。顶层是「按音频内容哈希索引的字典」，每个 entry 记录该文件处理到哪一步。用途是防止重启/重传导致重复转写。注意本轮校验是告警不阻断（strict=false）——状态库写失败会导致重复转写，代价远大于一条格式不规范的记录。",
+  "type": "object",
+  "required": [],
+  "additionalProperties": {
+    "type": "object",
+    "required": ["status"],
+    "properties": {
+      "status": {
+        "type": "string",
+        "enum": ["pending", "done", "failed"],
+        "description": "pending=已发现待处理 / done=已归档 / failed=失败（看 attempts 与 next_retry 决定是否重试）。"
+      },
+      "file": {
+        "type": "string",
+        "description": "原音频文件名，仅用于人看日志。"
+      },
+      "out_dir": {
+        "type": "string",
+        "description": "归档目录绝对路径。done 时写入，用于告诉用户「已处理过（去哪找）」。"
+      },
+      "attempts": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "已尝试次数，达到 MAX_ATTEMPTS 后不再自动重试。"
+      },
+      "duration": {
+        "type": "number",
+        "minimum": 0,
+        "description": "音频时长（秒）。"
+      },
+      "last_error": {
+        "type": "string",
+        "description": "最近一次失败原因，成功时清空成空串。"
+      },
+      "next_retry": {
+        "type": "number",
+        "minimum": 0,
+        "description": "下一次允许重试的 unix 时间戳；0 表示无需冷却。"
+      },
+      "updated": {
+        "type": "string",
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+        "description": "本条最后一次更新时刻，由 StateStore.update() 统一写入。"
+      }
+    },
+    "additionalProperties": true
+  }
+}

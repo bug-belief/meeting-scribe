@@ -1,0 +1,32 @@
+# ============================================================
+# 本地 ASR 与声纹（可选，装在基础依赖之上）
+#
+# 装它能得到两件基础包给不了的事：
+#   1. 完全离线转写（不上传音频，不花 API 费）
+#   2. 本地声纹「认人」—— 把 Speaker 1/2 换成真实姓名
+#
+# ⚠️ torch 必须先按机器选对版本，不要直接 pip install torch：
+#   CPU（无显卡，最省 ~175MB）：
+#     pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+#   NVIDIA（按驱动选 cu121 / cu124，CUDA 库会额外占 3.3GB）：
+#     pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
+#   装完 torch 再装本文件：
+#     pip install -r requirements-asr-local.txt
+#
+# 磁盘参考（实测）：
+#   torch(CPU) 175MB + funasr 11MB + cam++ 28MB + fsmn-vad 3.9MB ≈ 0.7–1 GB
+#   对比：全本地 GPU 方案（含三份 ASR 模型 + CUDA）约 21 GB
+# ============================================================
+funasr>=1.2.0
+modelscope>=1.20.0
+torch>=2.1
+torchaudio>=2.1
+
+# 说话人聚类（层次聚类）。缺了会「退化为单人」而不是崩，但就没有声纹区分了。
+scipy>=1.10
+
+# 说明：
+# - 模型首次运行自动下载到 MODELSCOPE_CACHE（默认 ~/data/models）
+# - 声纹用的是 cam++（28MB）。embedding 是 192 维，**换声纹模型会导致旧库不兼容**，
+#   升级时若换了模型，需要重建声纹库（speakers.json）。
+# - 不装本文件时，实时字幕不可用（流式模型 849MB），请走「上传音频」路径。

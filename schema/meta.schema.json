@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "meeting-scribe/schema/meta.schema.json",
+  "title": "归档元信息 meta.json",
+  "description": "每个归档目录 processed/<日期>_<标题>/meta.json 的结构。只约束「新建归档」时写出的内容；历史归档可能缺字段，修补流程（backfill / refresh_archive）不走严格校验，用 tools/check-schemas.py 做只读体检。",
+  "type": "object",
+  "required": ["meeting_id", "audio", "sha256", "title", "owner", "archived_at"],
+  "properties": {
+    "meeting_id": {
+      "type": "string",
+      "pattern": "^M[0-9]{8}-[0-9]{6}-[0-9a-f]{0,4}$",
+      "description": "M + 归档日期 + 归档时刻 + sha256 前 4 位，如 M20260101-090000-ab12。⚠️ 尾段允许为空：refresh_archive.py 在 sha256 缺失时会产出 M...-（既存不一致，未修）。"
+    },
+    "audio": {
+      "type": "string",
+      "minLength": 1,
+      "description": "归档后的音频文件名（不含目录），如 会议_622e.m4a。"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "音频内容哈希，去重与 meeting_id 后半段的来源。"
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "音频字节数。"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "标题，通常取原音频文件名去后缀。"
+    },
+    "owner": {
+      "type": "string",
+      "description": "租户 / 归属人。允许空串：早期归档没有 owner，不能因为空就把老数据判为非法。"
+    },
+    "archived_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+      "description": "归档时刻，ISO 8601 本地时间（不带时区、不带微秒）。"
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0,
+      "description": "音频时长（秒）。"
+    },
+    "attempts": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "转写尝试次数，含失败重试。"
+    },
+    "dual": {
+      "type": "boolean",
+      "description": "是否双路分轨录音（麦克风 + 对方各一路）。"
+    },
+    "assistant_events": {
+      "type": "array",
+      "description": "助理播报时间线：[{at_ms, kind, text}]。只记播报日志原文，不用 ASR 回声。"
+    },
+    "mic": {
+      "type": "string",
+      "description": "麦克风声道来源标识；空串表示未分轨或未知。"
+    },
+    "elapsed_sec": {
+      "type": "number",
+      "minimum": 0,
+      "description": "整条流水线实际耗时（秒），用于估算电费。"
+    }
+  },
+  "additionalProperties": true
+}

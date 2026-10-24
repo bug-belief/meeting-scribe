@@ -1,0 +1,88 @@
+# ---------- 密钥 / 隐私 ----------
+.env
+.env.*
+!.env.example
+.secrets/
+
+# ---------- 运行时产物 ----------
+audios_inbox/*
+!audios_inbox/.gitkeep
+processed/
+work/
+logs/
+*.log
+*.wav
+*.mp3
+*.m4a
+*.mp4
+
+# ---------- 构建产物 ----------
+dist/
+build/
+*.apk
+*.aab
+*.jks
+*.keystore
+# keystore 口令：绝不入库。构建时从 KEYSTORE_PASS 或这个文件读。
+*.pass
+keystore/
+# 法律语料的额外交叉来源（决定取数偏好，不入库）
+knowledge/legal/sources.json
+
+# ---------- 模型 / 缓存 ----------
+models/
+*.onnx
+*.pt
+*.bin
+.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ---------- 虚拟环境 ----------
+.venv/
+venv/
+
+# ---------- 编辑器 / 系统 ----------
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- 个人素材 / 临时镜像 ----------
+# samples/ 默认整目录忽略：这里是**你自己的真实录音**该放的地方，绝不该入库。
+# 只放行「由脚本生成、可复现」的两类东西（见 samples/README.md）：
+#   - 生成脚本本身与说明文档
+#   - 音量极小的合成 WAV（正弦/三角波，无版权问题，能测通分轨链路）
+# ⚠️ 不要改成 `samples/*` + `!samples/*.wav`：那样任何人把一个真实录音
+#    丢进 samples/ 就会被 `git add .` 带走。
+#
+# ⚠️ 也**不能**写 `samples/`（带斜杠）再跟 `!samples/xxx`：
+#    「目录被整体忽略」时 git 根本不会进去看，后面的 `!` 一律无效
+#    （2026-10-23 实测：5 个放行文件全被判为已忽略）。
+#    必须写成 `samples/**` 先忽略内容，再逐个 `!` 放行。
+samples/**
+!samples/README.md
+!samples/demo-voice.md
+!samples/make_samples.py
+!samples/demo-dual.wav
+!samples/demo-mono.wav
+_remote/
+_*.txt
+
+# ---------- 法律语料（数据，不是代码）----------
+# 语料由使用者在仓库外生成，通过 KB_LEGAL_PACK 指向；仓库只留获取脚本与说明。
+# 详见 knowledge/legal/README.md。只放行 README，避免把抓下来的法条误提交。
+knowledge/legal/*
+!knowledge/legal/README.md
+
+# deploy.sh 记录「上次成功部署到哪个 commit」（本机状态，不入库）
+.deploy-state
+# 家乡话词表含个人信息（地名/真名），只提供模板；真实文件不入库
+DIALECT.md
+
+# 脱敏门禁的「个人规则」：pattern 就是要藏的东西本身，绝不入库。
+# 模板见 tools/sanitize-rules.example.json（那个可以公开）。
+# ⚠️ 换机器/新克隆时它不存在，门禁会打印「未校验」—— 按模板补上即可。
+tools/sanitize-rules.local.json

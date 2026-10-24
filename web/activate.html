@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="robots" content="noindex">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<title>输入口令 · Meeting Scribe</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb;--danger:#e11d48}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1020;--card:#141b2d;--text:#e8ecf5;--muted:#93a0b8;--line:#25304a;--accent:#5b8cff;--danger:#ff4d6d}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;
+  padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.6}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 22px;
+  width:100%;max-width:380px;box-shadow:0 8px 28px rgba(0,0,0,.06)}
+img.logo{width:56px;height:56px;display:block;margin:0 auto 14px;border-radius:14px}
+h1{font-size:19px;margin:0 0 6px;text-align:center}
+p.sub{margin:0 0 20px;color:var(--muted);font-size:13.5px;text-align:center}
+/* 标语行：新用户第一次看到这个页面，光有名字不知道是干什么的。
+   这行字是唯一能解释「这是什么」的地方，所以贴在名字下面、比正文轻、比提示重。 */
+p.tagline{margin:0 0 6px;color:var(--accent);font-size:12.5px;text-align:center;
+  letter-spacing:.3px;font-weight:500}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);
+  color:var(--text);font-size:16px;font-family:inherit;letter-spacing:.04em}
+input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+button{width:100%;margin-top:14px;padding:12px 16px;border:0;border-radius:10px;background:var(--accent);
+  color:#fff;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+button:active{opacity:.85}
+button[disabled]{opacity:.55;cursor:default}
+.err{display:none;margin-top:12px;color:var(--danger);font-size:13px;text-align:center}
+.err.show{display:block}
+.tip{margin-top:16px;font-size:12.5px;color:var(--muted);text-align:center;line-height:1.7}
+.tip code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
+</style>
+</head>
+<body>
+<form class="card" id="f" autocomplete="off">
+  <img class="logo" src="/static/icon-192.png" alt="">
+  <h1>Meeting Scribe</h1>
+  <p class="tagline">智能语音分身助理</p>
+  <p class="sub">输入访问口令即可使用</p>
+
+  <label for="k">访问口令</label>
+  <input id="k" name="k" type="password" inputmode="text" autocapitalize="off"
+         autocorrect="off" spellcheck="false" placeholder="粘贴或输入口令" required>
+  <button type="submit" id="go">进入</button>
+  <div class="err" id="err"></div>
+
+  <div class="tip">
+    口令由管理员提供。第一次输入后会记住 90 天，<br>下次直接从桌面图标打开即可。
+  </div>
+</form>
+
+<script>
+(function () {
+  var f = document.getElementById('f');
+  var k = document.getElementById('k');
+  var go = document.getElementById('go');
+  var err = document.getElementById('err');
+
+  function say(msg) {
+    err.textContent = msg;
+    err.classList.add('show');
+  }
+
+  f.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = (k.value || '').trim();
+    if (!v) { say('请先输入口令'); return; }
+    go.disabled = true;
+    go.textContent = '验证中…';
+
+    // 用 /api/me 探口令：它比首页轻得多，而且服务端在同一个中间件里
+    // 就把 cookie 写好了，验证通过直接跳首页，不用再带一次 ?k=。
+    fetch('/api/me?k=' + encodeURIComponent(v), { credentials: 'same-origin' })
+      .then(function (r) {
+        if (r.ok) { location.replace('/'); return; }
+        throw new Error(r.status === 401 ? 'bad' : 'net');
+      })
+      .catch(function (e) {
+        go.disabled = false;
+        go.textContent = '进入';
+        say(e && e.message === 'bad'
+          ? '口令不对，检查一下大小写和空格'
+          : '连不上服务器，检查网络后重试');
+        k.select();
+      });
+  });
+
+  k.focus();
+})();
+</script>
+</body>
+</html>

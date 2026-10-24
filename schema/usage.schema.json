@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "meeting-scribe/schema/usage.schema.json",
+  "title": "用量记账 usage.jsonl 单行",
+  "description": "data/usage.jsonl 每行一条 JSON（JSONL，不是数组）。公共字段固定，按 kind 追加不同计费字段。只校验「公共骨架 + 已知字段类型」，因为计费字段会随供应商调整而增删（additionalProperties=true），把扩展性锁死会让记账变成维护负担。",
+  "type": "object",
+  "required": ["ts", "kind", "ref", "scene", "owner"],
+  "properties": {
+    "ts": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+      "description": "记账时刻，ISO 8601 本地时间。"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["llm", "asr", "tts"],
+      "description": "费用类别。决定该行该有哪些计费字段。"
+    },
+    "ref": {
+      "type": "string",
+      "description": "归属键：归档后是 meeting_id，实时会话是 session id，归档前是工作目录名（归档时由 relabel 改挂）。⚠️ 查成本一律用 meeting_id。"
+    },
+    "scene": {
+      "type": "string",
+      "description": "场景：assistant（代答）/ prompter（提词）/ summary（纪要）/ archive（转写）/ say（台词）/ live（实时）。允许空串。"
+    },
+    "owner": {
+      "type": "string",
+      "description": "租户 / 归属人。允许空串（命令行脚本可能没指定）。"
+    },
+    "vendor": {
+      "type": "string",
+      "description": "供应商：local（本地跑，只算电费）/ 云端厂商名。"
+    },
+    "model": {
+      "type": "string",
+      "description": "实际使用的模型名，用于反查 pricing.yaml 单价。"
+    },
+    "cost_yuan": {
+      "type": "number",
+      "minimum": 0,
+      "description": "实付金额（元）。本地路线为 0。"
+    },
+    "fair_yuan": {
+      "type": "number",
+      "minimum": 0,
+      "description": "按同款云端价折算的金额（元），用于体现「本地省了多少」。"
+    },
+    "electricity_yuan": {
+      "type": "number",
+      "minimum": 0,
+      "description": "本地跑的电费估算（元）。"
+    },
+    "audio_sec": {
+      "type": "number",
+      "minimum": 0,
+      "description": "ASR：音频时长（秒）。"
+    },
+    "compute_sec": {
+      "type": "number",
+      "minimum": 0,
+      "description": "ASR/TTS：实际计算耗时（秒），电费按它算。"
+    },
+    "chars": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "TTS：计费字数。⚠️ CosyVoice 口径 1 汉字 = 2 字符，写错差一倍。"
+    },
+    "text_chars": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "TTS：原文长度（不去重、不折算），用于对照 chars。"
+    },
+    "cached": {
+      "type": "boolean",
+      "description": "TTS：是否缓存命中。命中不重复计费。"
+    },
+    "prompt_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "LLM：输入 token 数。"
+    },
+    "completion_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "LLM：输出 token 数。"
+    }
+  },
+  "additionalProperties": true
+}

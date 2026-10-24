@@ -1,0 +1,40 @@
+[Unit]
+Description=Meeting audio watcher (FunASR 本地转写 + DeepSeek 纪要)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# 路径一律用 %h（systemd specifier，= 当前用户的 home），不要写死 /home/xxx。
+#
+# 为什么可以放心用 %h（2026-10-23 在本机 systemd 255 上实测过 5 种场景）：
+#   WorkingDirectory=%h/app          → /home/<user>/app
+#   Environment=K=%h/app/.env        → /home/<user>/app/.env
+#   Documentation=file://%h/app/...  → file:///home/<user>/app/...（三斜杠正确）
+#   StandardOutput=append:%h/x.log   → 真实写入 /home/<user>/x.log
+#   ExecStart=%h/app/.venv/bin/python ...  → 命令位置也能展开（这行最关键）
+#
+# 🔴 语义陷阱：%h 在 **--user unit** 里 = 当前用户 home；装成 **system unit**
+#   （/etc/systemd/system + systemctl 不带 --user）时 = `User=` 指定的 home，
+#   没写 User= 就是 **/root** —— 全部路径会指错。所以本目录的 unit 只能装到
+#   ~/.config/systemd/user/ 并用 `systemctl --user` 管理。
+Type=simple
+# 用户级单元：装到 ~/.config/systemd/user/ ，用 systemctl --user 管理
+# 代码 ~/app，数据 ~/data，日志 ~/logs（unit 里用 %h 表示 home）
+WorkingDirectory=%h/app
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+Environment=MEETING_ENV_FILE=%h/app/.env
+ExecStart=%h/app/.venv/bin/python %h/app/watcher.py
+Restart=always
+RestartSec=10
+# 与同机其他 GPU 程序共用时：降优先级，GPU 紧张时先让出
+Nice=10
+IOSchedulingClass=idle
+# 控制台输出交 systemd 日志（journalctl --user -u meeting-watcher -f）
+# 业务日志由 logging 自己写 ~/data/logs/watcher.log，
+# 两者都指同一个文件会导致每行重复打印
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

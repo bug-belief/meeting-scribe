@@ -1,0 +1,11 @@
+[Unit]
+Description=每天检查一次录音音频留存（凌晨低峰跑）
+
+[Timer]
+# 04:30 避开转写高峰；随机延迟半小时，避免和其他定时任务撞在一起
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target

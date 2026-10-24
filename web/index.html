@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="description" content="侧记 · 智能语音分身助理 —— 会议实时字幕与说话人识别、自动纪要归档，AI 语音分身可代答、可提词">
+<!-- PWA：安卓「添加到主屏幕」后是独立窗口，没有地址栏。APK 壳加载的也是这一页。 -->
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="侧记">
+<title>侧记 · 智能语音分身助理</title>
+<style>
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --text:#111827; --muted:#6b7280; --line:#e5e7eb;
+  --accent:#2563eb; --danger:#e11d48; --ok:#059669; --warn:#d97706;
+  --radius:14px;
+  /* 说话人配色：助理固定紫（AI 的感觉），其余按名字哈希取色，同一名字永远同色 */
+  --spk-asst:#7c3aed;
+  --spk1:#1d4ed8; --spk2:#0f766e; --spk3:#b45309; --spk4:#be123c;
+  --spk5:#15803d; --spk6:#0369a1; --spk7:#9d174d; --spk8:#4b5563;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0b1020; --card:#141b2d; --text:#e8ecf5; --muted:#93a0b8; --line:#25304a;
+         --accent:#5b8cff; --danger:#ff4d6d; --ok:#34d399; --warn:#fbbf24;
+         --spk-asst:#c4a1ff;
+         --spk1:#7aa2ff; --spk2:#4fd1c5; --spk3:#fbbf24; --spk4:#fb7185;
+         --spk5:#4ade80; --spk6:#67e8f9; --spk7:#f472b6; --spk8:#a3b0c8; }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.6;display:flex;flex-direction:column;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 18px 8px;padding-top:calc(10px + env(safe-area-inset-top));
+  flex:none;
+}
+h1{font-size:17px;font-weight:600;margin:0;letter-spacing:.2px;
+  display:flex;align-items:baseline;gap:7px;min-width:0;flex:0 1 auto}
+/* 副标题：主名之外补一句「这是什么」。它必须能省略——窄屏时优先保主名和右侧状态徽标，
+   不能让「智能语音分身助理」把「录音中」的提示挤掉。 */
+h1 .sub{font-size:11px;font-weight:400;color:var(--muted);letter-spacing:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@media (max-width:400px){h1 .sub{display:none}}
+.badge{
+  font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);
+  color:var(--muted);background:var(--card);display:flex;align-items:center;gap:6px;
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.badge.rec{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent)}
+.badge.rec .dot{background:var(--danger);animation:blink 1.1s infinite}
+.badge.busy{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.badge.busy .dot{background:var(--warn)}
+.badge.cost{font-variant-numeric:tabular-nums;font-size:11.5px}
+.badge.cost b{font-weight:600;color:var(--text)}
+.hgroup{display:flex;align-items:center;gap:8px}
+
+/* 提词器：录音时贴在转写区上方，给一句「你可以这么接」 */
+.prompt{
+  border-bottom:1px solid var(--line);padding:6px 14px 7px;
+  background:color-mix(in srgb,var(--accent) 5%,var(--card));
+  display:flex;flex-direction:column;gap:4px;
+  /* 面板本身也可被压缩：空间不够时先压它的正文（.pbody 有 flex:0 1 auto），
+     而不是让整个面板把转写区顶出视口。min-height:0 同上，去掉 flex 默认的 auto 下限。 */
+  flex:0 1 auto;min-height:0;
+}
+.prompt[hidden]{display:none}
+/* 标题行：允许换行 —— 窄屏时「提词 全听」留在第一行，
+   pmeta/按钮/× 折到第二行，而不是把 × 挤出可视区。 */
+.phead{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+/* 面板头上的「全听」开关：必须小而显眼，但别抢注意力。
+   它的作用域只在这一场提词里，所以放在面板上比放进设置区更合适。 */
+.pall{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);
+  cursor:pointer;padding:1px 5px;border-radius:5px;border:1px solid transparent;white-space:nowrap}
+.pall:hover{border-color:var(--line);color:var(--text)}
+.pall input{margin:0;width:12px;height:12px;cursor:pointer;accent-color:var(--accent)}
+.prompt.all .pall{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.pdot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+.prompt.busy .pdot{animation:blink .8s infinite}
+/* pmeta（如 "7.2s"）负责把右侧内容推走：它吃掉剩余空间，后面的按钮与 × 就贴右。
+   ⚠️ 不要再给 .pact 加 margin-left:auto —— 两个 auto 会平分空白，
+      结果是按钮飘在中间、和 × 之间留一道怪缝。 */
+.pmeta{margin-left:auto;font-variant-numeric:tabular-nums;flex:none}
+.px{border:0;background:transparent;color:var(--muted);font-size:17px;line-height:1;
+  cursor:pointer;padding:0 2px;font-family:inherit}
+.px:hover{color:var(--text)}
+/* 提词面板高度（2026-10-23 第二次改 → 2026-10-25 第三次改）
+   · 第一版 max-height:min(42vh,340px)：42vh 在 1080p 上是 453px，顶到 340px 上限，
+     手机竖屏也有 300px 左右，把转写区挤成一条缝。
+   · 第二版 min(30vh,220px)：仍然只看自己多高，**不看还剩多少给转写区**。
+     1080p 上没问题，但窗口一矮就原形毕露 —— 629px 视口时：
+       header 44 + meter 86 + 面板头像 24 + 按钮 30 + padding 17 = 201px 固定开销，
+       加上 220px 的正文 = 421px，转写区只剩 205px，屏幕上就是「提词框把对话顶掉」。
+     这个 bug 之所以反复：**30vh 是按视口算的，30vh 越小、剩下的就越少，但固定开销不跟着缩。**
+   · 第三版用 `flex:0 1 auto` + `max-height:min(...)` 让**提词面板自己去抢空间**：
+     它和转写区在同一个 flex 列里，`.lines{flex:1}` 有 min-height 保护，两者会按比例分配。
+     这里给的是「上限」，真正的下限交给 .lines 的 min-height 兜。
+   · 另加 clamp 下界 96px：再矮也不至于只剩一行标题。
+   · 滚动这件事在桌面 Chrome 上是隐形的：Linux/Windows 默认 overlay 滚动条，
+     鼠标不悬停、不滚动时**宽度为 0**，叠上 scrollbar-width:thin 就更看不出来。
+     所以另加 .pmeter 进度条（见下），不依赖滚动条是否可见。 */
+.pbody{
+  /* 200px = 内容够看约 4 轮；26vh 跟着视口缩；72px 是下限（约 2 轮，仍能读到一句提示）。
+     ⚠️ 用 max-height 而不是 height：内容少时不该留白。
+     flex:1 1 auto 让它与 .lines（flex:2）按 1:2 分配剩余空间 —— 见 .lines 处说明。
+
+     末尾渐隐（2026-10-25）：面板高度是按剩余空间算的，很容易正好切在一行中间。
+     那种「半个字」看着像渲染坏了，而不像「下面还有」。
+     但这层遮罩**不能常开** —— 常开的话滚到底时最后一行永远半透明，读不清。
+     所以由 JS（prompter.js 的 syncPromptMeter）只在「下面还有内容且未到底」时加 .more。 */
+  max-height:clamp(72px, 26vh, 200px);
+  overflow-y:auto;display:flex;flex-direction:column;gap:8px;
+  scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--accent) 55%,var(--line)) transparent;
+  overscroll-behavior:contain;
+  flex:1 1 auto;
+  min-height:0;       /* flex 子项默认 min-height:auto 会拒绝收缩，必须显式置 0 */
+}
+/* 只有「下面还有内容且未滚到底」时才淡出最后 14px（类由 prompter.js 控制）。
+   用 mask 而不是叠一个渐变 div：后者会挡住最后一行的一部分点击区。 */
+.pbody.more{
+  -webkit-mask-image:linear-gradient(to bottom, #000 calc(100% - 14px), transparent 100%);
+  mask-image:linear-gradient(to bottom, #000 calc(100% - 14px), transparent 100%);
+}
+/* 高度自适应的滚动提示条：JS 量 scrollHeight > clientHeight 才显示。
+   不能拿「内容超过 N 条」当判据——字体、字号、英文注音都会改变实际高度。 */
+.pmeter{height:3px;border-radius:2px;background:color-mix(in srgb,var(--text) 8%,transparent);
+  overflow:hidden;margin-top:-3px}
+.pmeter[hidden]{display:none}
+.pmeter i{display:block;height:100%;background:color-mix(in srgb,var(--accent) 60%,transparent);
+  border-radius:2px;transform-origin:left center}
+.pbody::-webkit-scrollbar{width:8px}
+.pbody::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+.pbody::-webkit-scrollbar-track{background:transparent}
+/* 一轮 = 「他在问什么」+ 几条提示。
+   2026-10-25 收紧：gap 4→2、pq 行高 1.45→1.35、pitem 行高 1.5→1.4。
+   同样的 200px 高度里，原来只装得下 3 轮，现在约 4 轮 —— 相当于多看了半分钟的提示，
+   而字号没动（15px 是扫读下限，再小就要凑近了看，反而更慢）。 */
+.pround{display:flex;flex-direction:column;gap:2px;
+  padding-left:8px;border-left:2px solid color-mix(in srgb,var(--accent) 28%,transparent)}
+.pround:first-child{border-left-color:transparent;padding-left:0}
+/* 触发这一轮的那句话：没有它，回看时只剩孤零零的几句提示，看不懂上下文 */
+.pq{font-size:11.5px;line-height:1.35;color:var(--muted);word-break:break-word;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.pitem{font-size:15px;line-height:1.4;display:flex;gap:7px;align-items:flex-start}
+.pitem .pk{flex:none;font-size:10px;line-height:1.6;padding:0 5px;border-radius:5px;
+  border:1px solid var(--line);color:var(--muted);margin-top:3px;white-space:nowrap}
+.pitem.ask .pk{color:var(--spk6);border-color:color-mix(in srgb,var(--spk6) 45%,transparent)}
+.pitem.check .pk{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.pitem.say .pk{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.pitem .pt{flex:1;min-width:0;word-break:break-word}
+.pitem.stale{opacity:.5}
+.pempty{font-size:13px;color:var(--muted)}
+/* 提词操作按钮（填台词框 / 再想一次）：现在住在标题行里，紧跟 pmeta 之后贴右。
+   ⚠️ 这里**不能**再写 margin-left:auto —— pmeta 已经用 auto 吃掉了空白，
+      两个 auto 会平分，按钮就飘到中间、和 × 之间留一道怪缝。
+   ⚠️ 窄屏也不把按钮改成纯图标：这两个动作低频，宁可让它整块换行，
+      也不要出现看不懂的图标。 */
+.pact{display:flex;gap:5px;flex:none}
+.pact button{font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);
+  background:var(--card);color:var(--text);cursor:pointer;font-family:inherit;white-space:nowrap}
+.pact button:hover{border-color:var(--accent);color:var(--accent)}
+.pact button:disabled{opacity:.4;cursor:default}
+@keyframes blink{50%{opacity:.25}}
+
+main{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 14px}
+.panel{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;display:flex;flex-direction:column;min-height:0;flex:1;
+}
+/* 计时与波形：86px → 70px（padding 14→10，时钟 26→24px）。
+   这一条在矮窗口下也要钱：629px 视口里 header+波形已经吃掉 130px。
+   时钟仍保持 24px——它是「录音在走」的唯一凭据，不能为了省 2px 让人看不清。 */
+.meter{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);flex:none}
+.clock{font-variant-numeric:tabular-nums;font-size:24px;font-weight:500;letter-spacing:.5px;min-width:96px}
+.bars{display:flex;gap:3px;align-items:flex-end;height:24px;flex:1}
+.bars i{flex:1;background:var(--line);border-radius:2px;height:4px;transition:height .08s linear}
+.bars.on i{background:var(--accent)}
+
+/* 极矮窗口（≤520px，典型是手机横屏）自动让次要操作让位：
+   混音折叠条与入口行都是「偶尔点一次」的东西，而转写区和提词器是「一直在看」的。
+   隐藏它们不丢功能 —— 混音仍可从语音分身页进入，入口行三个链接在竖屏/正常高度都在。
+   ⚠️ 用 px 而不是 vh：这里要区分的是「屏幕本身就小」和「窗口被拖小了」，
+     后者用户能自己调大，前者不能，所以按物理高度判断更合适。 */
+@media (max-height:520px){
+  footer .mix{display:none}
+  footer .entryrow{display:none}
+  footer{padding-bottom:calc(6px + env(safe-area-inset-bottom))}
+}
+
+/* 转写区与提词面板的**空间分配**（2026-10-25 第三次改，这里是最关键的一处）
+   ─────────────────────────────────────────────────────────────
+   问题：上一版给 .lines 加 min-height:min(200px,36vh) 后，矮窗口下提词面板被压成 0 ——
+   629px 时正文还有 91px，560px 只剩 22px，480px 直接归零。
+   那是「两个内容区互相踩」，等于为了保住一个把另一个牺牲掉。
+
+   正确做法：**让两者按比例分，且各自都有下限**。
+     · 提词面板：flex:1 1 auto —— 它会跟着转写区一起长、一起缩
+     · 转写区  ：flex:2 1 auto —— 权重 2，永远拿到提词的两倍左右
+     · 下限不写死像素，而是用 min-height:0 + 各自的 max-height 兜住
+   为什么不要 min-height:200px 这种硬下限：它会让「空间本来就不够」的情况变成
+   「谁的下限大谁赢」，而不是「按重要性分配」。窗口只有 480px 时，两个区域都该缩小，
+   而不是一个吃掉另一个。
+
+   现在：629px → 提词 ~150 / 转写 ~250；560px → 提词 ~100 / 转写 ~200。
+   比例稳定，矮窗口下都还能看。 */
+.lines{
+  flex:2 1 auto;min-height:0;
+  overflow-y:auto;padding:6px 16px 12px;scroll-behavior:smooth;
+}
+/* 转写区末尾渐隐：与提词面板同一套 —— 只在「下面还有内容且未滚到底」时加 .more
+   （类由 render.js 的 syncLinesMore 控制）。理由也一样：高度是 flex 算的，
+   很容易正好切在一条台词中间，那种「半个字」看着像渲染坏了。 */
+.lines.more{
+  -webkit-mask-image:linear-gradient(to bottom, #000 calc(100% - 14px), transparent 100%);
+  mask-image:linear-gradient(to bottom, #000 calc(100% - 14px), transparent 100%);
+}
+.hint{color:var(--muted);font-size:14px;padding:26px 4px;line-height:1.9}
+.line{padding:7px 0;border-bottom:1px dashed var(--line);display:flex;gap:10px}
+.line:last-child{border-bottom:0}
+.ts{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;padding-top:3px;min-width:46px}
+.line .who{color:var(--spk,var(--accent));font-weight:600;margin-right:2px}
+.spk-1{--spk:var(--spk1)}.spk-2{--spk:var(--spk2)}.spk-3{--spk:var(--spk3)}.spk-4{--spk:var(--spk4)}
+.spk-5{--spk:var(--spk5)}.spk-6{--spk:var(--spk6)}.spk-7{--spk:var(--spk7)}.spk-8{--spk:var(--spk8)}
+.spk-asst{--spk:var(--spk-asst)}
+.txt{flex:1;word-break:break-word}
+.pending{color:var(--muted)}
+.pending .txt{color:var(--text);opacity:.55}
+.typing::after{content:"▌";animation:blink .9s infinite;color:var(--accent)}
+/* 实时面板里的助理台词：已说的用助理色，未说的压灰 */
+.line.assistant .who.asst{color:var(--spk-asst)}
+.line.assistant .said{color:var(--spk-asst)}
+.line.assistant .ahead{color:var(--muted);opacity:.45}
+.line.assistant.thinking .ahead{font-style:italic}
+.line.assistant .atag{font-size:10.5px;color:var(--muted);margin-left:6px;white-space:nowrap}
+.line.assistant.cut .ahead.dropped{text-decoration:line-through;opacity:.3}
+.line.assistant.failed .ahead{color:var(--danger);opacity:.9;font-style:normal}
+/* 失败时那一行「现在能做什么」：小一号、暗一点，但不能淡到看不见。
+   它和主文案是一对——只看红字只知道出事了，不知道要不要处理。 */
+.line.assistant .lhint{font-size:11px;line-height:1.45;margin-top:3px;
+  color:var(--danger);opacity:.72}
+.aibadge{display:inline-block;font-size:9.5px;line-height:1;padding:2px 4px;border-radius:4px;
+  margin-right:5px;vertical-align:1px;font-weight:700;letter-spacing:.4px;
+  color:var(--spk-asst);border:1px solid color-mix(in srgb,var(--spk-asst) 45%,transparent);
+  background:color-mix(in srgb,var(--spk-asst) 10%,transparent)}
+
+/* ============================== footer ==============================
+   2026-10-25 重排。原来是一条 276px 的竖列：
+     音源 39 + 提示 16 + 混音折叠 40 + 主按钮 76 + 入口行 23 + 6 段 gap 60 + 内边距 32
+   在 629px 高的窗口里，它和 header(44) + 波形(86) + 提词面板(261) 加起来超过视口，
+   把转写区压到 18px —— 屏幕上只剩一条缝。
+
+   改法（三件事，都不减功能）：
+     ① **主按钮与音源并排**：源切换在左、圆形按钮在右，一行吃掉原来两行的高度。
+     ② **提示文字从「固定占位」改成「有内容才占位」**：原来的 min-height:16px
+        让它在没内容时也留一行空白，那行空白在矮窗口里也要钱。
+     ③ **收紧 gap 与内边距**：14/18/10 → 10/14/6，六段 gap 从 60 降到 36。
+   同时给 footer 一个 flex:0 0 auto —— 它不该被压缩（按钮压扁就点不准了），
+   空间不够要压的是提词面板和转写区，不是这里。 */
+footer{
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  flex:0 0 auto;
+}
+.sources{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px}
+.sources button{border:0;background:transparent;color:var(--muted);font-size:13px;padding:6px 13px;border-radius:999px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.sources button.on{background:var(--accent);color:#fff}
+.sources.locked{opacity:.5;pointer-events:none}
+/* 提示只在有字时占高度。用 :empty 而不是 JS 控制 —— JS 要管多个入口（切源、开录、报错），
+   漏一处就留一行空白，而 :empty 天生不会漏。⚠️ 元素里只要有空白字符就不算 :empty，
+   所以 JS 写入时必须用 textContent = '' 清空，不能写 ' '。 */
+.srchint{font-size:11.5px;color:var(--muted);text-align:center;max-width:420px;line-height:1.45}
+.srchint:empty{display:none}
+/* 音源 + 主按钮：一行。窄屏（<360px）才允许换行。 */
+.ctrlrow{
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  flex-wrap:wrap;width:100%;
+}
+.mix{margin:0;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden;max-width:460px;width:100%}
+.mix>summary{list-style:none;cursor:pointer;padding:7px 12px;font-size:12.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.mix>summary::-webkit-details-marker{display:none}
+.mix[open]>summary{color:var(--text);border-bottom:1px solid var(--line)}
+.mixbody{padding:10px 12px;display:flex;flex-direction:column;gap:9px;font-size:13px}
+.mixrow{display:flex;align-items:center;gap:8px}
+.mixrow>label{display:flex;align-items:center;gap:7px;flex:1;cursor:pointer}
+.mixrow>span{font-size:12px;color:var(--muted);flex-shrink:0}
+.mixrow select{flex:1;min-width:0;padding:5px 7px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:12.5px}
+.mixbtn{padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:12.5px;cursor:pointer;flex-shrink:0}
+.mixbtn:disabled{opacity:.45;cursor:default}
+.mixhint{font-size:11.5px;color:var(--muted);line-height:1.55;min-height:16px}
+.mixrow textarea{flex:1;min-width:0;font-family:inherit;font-size:12.5px;padding:6px 8px;
+  border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);resize:vertical;line-height:1.5}
+/* 台词队列 */
+.sayq{max-height:150px;overflow-y:auto;font-size:12.5px;padding:2px 0}
+.qline{display:flex;gap:6px;align-items:flex-start;padding:3px 0;color:var(--muted);line-height:1.5}
+.qdot{width:6px;height:6px;border-radius:50%;background:var(--line);margin-top:7px;flex:none}
+.qtext{flex:1;min-width:0;word-break:break-word}
+.qline.speaking{color:var(--text)}
+.qline.speaking .qdot{background:var(--accent)}
+.qline.speaking .qtext b{color:var(--accent);font-weight:600}
+.qline.done .qdot{background:var(--ok)}
+.qline.partial .qdot{background:var(--warn)}
+.qline.cancelled{opacity:.42}
+.qline.cancelled .qtext{text-decoration:line-through}
+.qtag{font-size:10.5px;color:var(--muted);border:1px solid var(--line);border-radius:6px;
+  padding:0 5px;flex:none;margin-top:2px}
+.voiceentry{font-size:12px;color:var(--muted);text-decoration:none;padding:2px 0}
+.voiceentry:hover{color:var(--accent)}
+/* 「切换账号」是 button 而不是 a：它不跳转，是发一个 POST。
+   但外观必须和旁边两个链接一模一样，否则会显得像个不重要的按钮。 */
+button.voiceentry{border:0;background:transparent;font-family:inherit;cursor:pointer;line-height:inherit}
+button.voiceentry[disabled]{opacity:.5;cursor:default}
+.entryrow{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+/* 主按钮：76px → 58px（2026-10-25 随 footer 重排一同缩小）。
+   58 是「拇指能稳稳点中」与「别再吃 76px 高度」的折中；Material 的可点区域下限是 48。
+   ⚠️ 脉冲环 ::after 用 inset:-8px 外扩，所以 .ctrlrow 必须留出这点溢出空间，
+      否则按钮贴边时环会被裁掉 —— 用 margin:8px 撑开而不是 overflow:visible，
+      因为后者在 flex 容器里会让相邻元素重叠。 */
+.recbtn{
+  width:58px;height:58px;margin:8px;border-radius:50%;border:0;background:var(--danger);color:#fff;
+  font-size:13.5px;font-weight:600;box-shadow:0 6px 18px color-mix(in srgb,var(--danger) 35%,transparent);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s;
+  flex:none;
+}
+.recbtn:active{transform:scale(.94)}
+.recbtn.stop{background:#374151;box-shadow:none}
+.recbtn.rec{position:relative}
+.recbtn.rec::after{
+  content:"";position:absolute;inset:-8px;border-radius:50%;
+  border:2px solid color-mix(in srgb,var(--danger) 45%,transparent);animation:pulse 1.8s infinite;
+}
+@keyframes pulse{0%{transform:scale(.92);opacity:.9}100%{transform:scale(1.22);opacity:0}}
+.recbtn[disabled]{opacity:.5;cursor:default}
+
+/* 结果面板 */
+.result{position:fixed;inset:0;background:var(--bg);z-index:20;display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top)}
+.result[hidden]{display:none}
+.rhead{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:6px;flex:1}
+.tab{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;
+  padding:6px 14px;font-size:13px;cursor:pointer}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.iconbtn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;
+  padding:7px 11px;font-size:13px;cursor:pointer}
+.doc{flex:1;overflow-y:auto;padding:16px 18px 40px}
+.playback{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg)}
+.playback audio{width:100%;height:36px;display:block}
+.pbtip{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.5}
+.pbid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--muted);
+  margin-top:6px;cursor:pointer;user-select:all;letter-spacing:.02em}
+.pbid:hover{color:var(--accent)}
+.pbid::after{content:"  点击复制";font-family:inherit;opacity:.7}
+/* 说话人认领 */
+.speakers{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg)}
+.spkrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;
+  border-bottom:1px dashed var(--line)}
+.spkrow:last-child{border-bottom:0}
+.spkname{font-size:13px;font-weight:600;min-width:74px;color:var(--spk,var(--text))}
+.spkmeta{font-size:11.5px;color:var(--muted)}
+.spkpill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.spkpill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.spkpill.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.spkrow input{font-family:inherit;font-size:12.5px;padding:5px 9px;border-radius:8px;
+  border:1px solid var(--line);background:var(--card);color:var(--text);width:96px}
+.spkrow button{font-size:12px;padding:5px 10px;border-radius:8px}
+.spkrow select{font-family:inherit;font-size:12.5px;padding:5px 6px;border-radius:8px;
+  border:1px solid var(--line);background:var(--card);color:var(--text);max-width:92px}
+.spkprof{font-size:11.5px;color:var(--muted)}
+.sptip{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+.doc h1{font-size:19px;margin:.8em 0 .5em}
+.doc h2{font-size:16px;margin:1.2em 0 .5em}
+.doc h3{font-size:15px;margin:1em 0 .4em}
+.doc p{margin:.55em 0}
+.doc ul,.doc ol{padding-left:1.3em;margin:.5em 0}
+.doc li{margin:.25em 0}
+.doc blockquote{margin:.6em 0;padding:.4em .8em;border-left:3px solid var(--accent);
+  background:color-mix(in srgb,var(--accent) 7%,transparent);color:var(--muted);font-size:14px}
+.doc code{background:color-mix(in srgb,var(--text) 8%,transparent);padding:1px 5px;border-radius:5px;font-size:13px}
+.doc pre{background:color-mix(in srgb,var(--text) 7%,transparent);padding:12px;border-radius:10px;overflow:auto}
+.doc table{border-collapse:collapse;width:100%;font-size:13.5px;margin:.6em 0;display:block;overflow-x:auto}
+.doc th,.doc td{border:1px solid var(--line);padding:6px 9px;text-align:left}
+.doc th{background:color-mix(in srgb,var(--text) 5%,transparent)}
+.doc strong{font-weight:600}
+/* 转写稿里的说话人：和实时面板同一套配色，翻稿子时一眼能跟上谁在说 */
+.doc .spkline{color:var(--spk,var(--text));font-weight:600}
+.doc .spkline .spts{color:var(--muted);font-weight:500;font-size:12.5px;margin-right:2px}
+.doc .spkline .aibadge{margin-left:5px;vertical-align:1px}
+.toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:rgba(17,24,39,.92);
+  color:#fff;font-size:13px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;
+  transition:opacity .25s;z-index:40}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>侧记<span class="sub">智能语音分身助理</span></h1>
+  <div class="hgroup">
+    <div class="badge cost" id="costBadge" hidden title="会话累计成本（折算价 / 省下的钱）"></div>
+    <div class="badge" id="badge"><span class="dot"></span><span id="badgeText">待机</span></div>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="meter">
+      <div class="clock" id="clock">00:00:00</div>
+      <div class="bars" id="bars"></div>
+    </div>
+    <div class="prompt" id="prompt" hidden>
+      <div class="phead">
+        <span class="pdot"></span><span>提词</span>
+        <label class="pall" title="默认只听对方说话（自己说的不用提示）。
+勾上后不分谁说的，每句话都听——开会自己梳理思路、单人复盘时用这个。">
+          <input type="checkbox" id="promptAll"> 全听
+        </label>
+        <span class="pmeta" id="promptMeta"></span>
+        <!-- 两个操作按钮从底部挪到这里（2026-10-25）。
+             它们原来单独占一行约 30px，把正文挤得只剩 1 轮内容；
+             而这一行本来就有大量空白（pmeta 通常只有 "7.2s"）。
+             语义上也更贴：它们作用于「整块提词」，不是某一条提示。 -->
+        <span class="pact">
+          <button id="promptSay" disabled title="把提示填进台词框，你自己改完再点「让它说」">填台词框</button>
+          <button id="promptAgain" disabled>再想一次</button>
+        </span>
+        <button class="px" id="promptClose" title="收起（按 P 再打开）">×</button>
+      </div>
+      <div class="pbody" id="promptBody"></div>
+      <div class="pmeter" id="promptMeter" hidden><i id="promptMeterBar"></i></div>
+    </div>
+    <div class="lines" id="lines">
+      <div class="hint" id="hint">
+        点下面的按钮开始录音。<br>
+        边说边出字，停止后自动整理成带说话人的转写稿和纪要。
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <!-- 音源切换与主按钮同处一行（2026-10-25 重排）：
+       原来它们在竖列里各占一行，加起来 115px；并排后这段压到 74px。
+       DOM 顺序保持「音源 → 按钮」，所以窄屏换行时按钮在下一行、仍在拇指位置。 -->
+  <div class="ctrlrow">
+    <div class="sources" id="sources">
+      <button data-src="mic" class="on">麦克风</button>
+      <button data-src="system">系统声音</button>
+      <button data-src="dual">双路分轨</button>
+    </div>
+    <button class="recbtn" id="recbtn" aria-label="开始录音">开始</button>
+  </div>
+  <div class="srchint" id="srchint"></div>
+  <details class="mix" id="mixPanel">
+    <summary><span>分身混音：把合成音送进麦克风</span><span id="mixState">未启用</span></summary>
+    <div class="mixbody">
+      <div class="mixrow">
+        <label><input type="checkbox" id="mixEnable"> 混入微信麦克风（对方能听到）</label>
+      </div>
+      <div class="mixrow">
+        <span>送到</span>
+        <select id="mixSink"></select>
+      </div>
+      <div class="mixrow">
+        <label><input type="checkbox" id="mixMonitor" checked> 同时用耳机监听分身</label>
+      </div>
+      <div class="mixrow">
+        <select id="mixSample"></select>
+        <button class="mixbtn" id="mixPlay" disabled>试播</button>
+      </div>
+      <div class="mixrow">
+        <select id="sayVoice"></select>
+        <button class="mixbtn" id="sayTest" disabled>试听</button>
+      </div>
+      <div class="mixrow">
+        <span class="mixhint" id="sayVoiceHint">我的声纹：像你本人在说 · 电脑声音：一听就知道是 AI</span>
+      </div>
+      <div class="mixrow">
+        <textarea id="sayText" rows="2" placeholder="让它替你说的话（按标点切句，逐句播；打断后未播的句子作废）"></textarea>
+      </div>
+      <div class="mixrow">
+        <button class="mixbtn" id="sayGo" disabled>让它说</button>
+        <button class="mixbtn" id="sayDraft" disabled>接一句</button>
+        <button class="mixbtn" id="sayStop" disabled>打断</button>
+        <span class="mixhint" id="sayState"></span>
+      </div>
+      <div class="mixrow">
+        <label><input type="checkbox" id="sayWake" checked> 语音助理模式（喊一声就连续对话 90 秒）</label>
+      </div>
+      <div class="mixrow">
+        <span>谁能唤起</span>
+        <select id="wakeMode" title="决定哪些话能把助理叫起来">
+          <option value="strict">只有我（默认）</option>
+          <option value="guest">我或对方，喊了都认</option>
+          <option value="open">谁说话都接（连续对话）</option>
+          <option value="proxy">我闭麦时代班（对方问它就答）</option>
+        </select>
+      </div>
+      <div class="mixrow">
+        <label><input type="checkbox" id="saySpeak" checked> 🔊 出声（关掉＝只听不说，只给文字）</label>
+      </div>
+      <div class="mixrow">
+        <label><input type="checkbox" id="promptOn" checked> 提词器（对方说完给一句提示，不合成不出声）</label>
+      </div>
+      <div class="mixrow">
+        <label><input type="checkbox" id="promptPhonetic"> 英文词注音（查本地字典，不额外花 token）</label>
+      </div>
+      <div class="mixrow">
+        <span>知识场景</span>
+        <select id="kbScenario" title="决定助理这次能引用哪一类个人资料：面试只讲项目、谈判只讲法律和钱">
+          <option value="">通用（默认）</option>
+        </select>
+      </div>
+      <div class="sayq" id="sayQueue" hidden></div>
+      <div class="mixhint" id="mixHint">先点「开始」，进入录音状态后可用。</div>
+    </div>
+  </details>
+  <div class="entryrow">
+    <a class="voiceentry" href="#" id="latestEntry">回放上次录音 →</a>
+    <a class="voiceentry" href="/voice">语音分身输出通道 →</a>
+    <button class="voiceentry" type="button" id="logoutEntry">切换账号 →</button>
+  </div>
+</footer>
+
+<div class="result" id="result" hidden>
+  <div class="rhead">
+    <div class="tabs">
+      <button class="tab on" data-tab="transcript">转写稿</button>
+      <button class="tab" data-tab="report">纪要</button>
+    </div>
+    <button class="iconbtn" id="starBtn" hidden title="收藏后这场录音的音频不会被定期清理">☆ 收藏</button>
+    <button class="iconbtn" id="copyBtn">复制</button>
+    <button class="iconbtn" id="dlBtn">下载</button>
+    <button class="iconbtn" id="closeBtn">返回</button>
+  </div>
+  <div class="playback" id="playback" hidden>
+    <audio id="player" controls preload="metadata"></audio>
+    <div class="pbtip" id="pbtip">回放：左右两路已混成一条，等同于旁听者听到的全部声音。</div>
+    <div class="pbid" id="meetingId" hidden></div>
+  </div>
+  <div class="speakers" id="speakers" hidden></div>
+  <div class="doc" id="doc"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" onerror="window.__noMarked=1"></script>
+<!-- 加载顺序有依赖，不能调换：
+     state（共享状态）→ lib/（纯函数）→ audio → render → archive → tts → prompter
+     → app（装配与业务）
+     模块之间凡是互相调用，都用「运行时解析」的代理（window.MeetXxx.xxx），
+     所以只要 state/lib 在最前、app 在最后，中间的相对顺序不会死结。 -->
+<script src="/static/state.js"></script>
+<script src="/static/lib/format.js"></script>
+<script src="/static/lib/wake.js"></script>
+<script src="/static/audio.js"></script>
+<script src="/static/render.js"></script>
+<script src="/static/archive.js"></script>
+<script src="/static/tts.js"></script>
+<script src="/static/prompter.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# ruff 配置 · 真源：本文件
+#
+# 分级策略（存量项目，见 docs/adr/0002-format-baseline.md）：
+#   · lint（E/F/I）—— 默认开启。只抓真错误与 import 顺序，不重排代码。
+#   · format        —— 默认关闭。一次全仓 format 会重写 15K 行、毁掉全部 blame，
+#                      需要一次性独立提交，由人决定何时做（`bash tools/check-style.sh --format`）。
+#
+# ruff 未安装时不影响提交：tools/check-style.sh 会明确打印「未校验」，不静默放行。
+
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I"]
+# 行宽交给 formatter（当前未启用），避免「lint 与 format 打架」
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+# 测试脚本先改 sys.path 再 import，顺序天然无法满足 I001
+"tests/*" = ["E402"]
+# deploy/ 下是运维脚本，大量 sys.path 注入与延迟 import
+"deploy/*" = ["E402"]
+
+[lint.isort]
+# `from costs import asr_cost, log as log_cost` 这种「顺带起别名」的写法本仓有 5 处，
+# 默认（false）会要求拆成两条 import，纯属格式噪音。允许合并后这 5 处零改动即可过检。
+combine-as-imports = true
+
+[format]
+quote-style = "double"
+indent-style = "space"

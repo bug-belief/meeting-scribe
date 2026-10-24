@@ -1,0 +1,33 @@
+# ============================================================
+# 基础依赖（必装）—— 不含 torch / funasr
+#
+# 装完这个就能起服务、上传音频、用云端 ASR 转写出稿（需配 API key）。
+# 想要「完全离线」或「本地声纹认人」，再装 requirements-asr-local.txt。
+#
+#   pip install -r requirements.txt                                 # 云端转写（默认、最轻）
+#   pip install -r requirements.txt -r requirements-asr-local.txt    # + 本地模型
+#
+# 系统依赖：ffmpeg / ffprobe 必须在 PATH（音频解码、转 16k 全交给它）
+# ============================================================
+openai>=1.40,<3
+python-dotenv>=1.0
+watchdog>=4.0
+numpy>=1.24,<3
+
+# ---------- Web 服务（server.py 与 api/ 直接 import，缺了起不来）----------
+# 2026-10-23 实测：这三个**没有任何上游包会带进来**
+# （venv 里 `pip show fastapi/uvicorn/httpx` 的 Required-by 全为空）。
+# 之前漏在 requirements.txt 里，导致全新环境装完仍然
+# `ModuleNotFoundError: fastapi` —— 服务根本起不来，不是「面板空白」。
+fastapi>=0.110
+uvicorn>=0.27
+httpx>=0.23
+
+# ---------- 配置与音频 ----------
+pyyaml>=6.0          # 场景包 scenarios.yaml / 计价表 pricing.yaml
+soundfile>=0.12      # 读 wav 做声道能量与声纹切片（不依赖 torch）
+
+# 说明：
+# 1) 音频解码/转码全部交给系统 ffmpeg，不装 ffmpeg-python，少一层坑
+# 2) 走 WhisperX 路线请改用 requirements-whisperx.txt
+# 3) torch 不在这里 —— 见 requirements-asr-local.txt（必须先选对 CPU/CUDA 版本）
